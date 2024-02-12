@@ -4,7 +4,13 @@ import Contact from "../models/contact.js"
 
 export const getAllContacts = async(req, res, next) => {
         try {
-                const result = await Contact.find();
+                const {_id: owner} = req.user;
+
+                const {page = 1, limit = 10, favorite=false} = req.query;
+                const skip = (page - 1) * limit;
+
+                const result = await Contact.find({owner, favorite}, "-__v", {skip, limit}).populate("owner", "email subscription");
+
                 res.json(result);
             }
         catch(error) {
@@ -42,7 +48,9 @@ export const deleteContact = async(req, res, next) => {
 
 export const createContact = async(req, res, next) => {
     try {
-        const result = await Contact.create(req.body);
+        const {_id: owner} = req.user;
+
+        const result = await Contact.create({...req.body, owner});
         res.status(201).json(result);
     }
     catch(error) {
