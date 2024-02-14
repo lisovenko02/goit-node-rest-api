@@ -1,13 +1,23 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv"
-
+import dotenv from "dotenv";
+import gravatar from "gravatar";
 import {User} from "../models/user.js";
 import HttpError from "../helpers/HttpError.js";
+import { promises as fs } from 'fs';
+import jimp from "jimp"
+
+import { fileURLToPath } from 'url';
+import path, { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 dotenv.config()
 
 const { SECRET_KEY } = process.env;
+
+const avatarsDir = path.join(__dirname, "../", "public", "avatars");
 
 export const register = async(req, res, next) => {
     try {
@@ -18,8 +28,9 @@ export const register = async(req, res, next) => {
         };
 
         const hashPassword = await bcrypt.hash(password,10);
+        const avatarURL = gravatar.url(email);
 
-        const newUser = await User.create({...req.body, password: hashPassword})
+        const newUser = await User.create({...req.body, password: hashPassword, avatarURL})
 
         res.status(201).json({
             user: {
@@ -107,6 +118,31 @@ export const updateSubscription = async(req,res,next) => {
 
         res.json({
             subscription: user.subscription, email
+        })
+    } catch (error) {
+        next(error)
+    }
+};
+
+export const updateAvatar = async(req,res,next) => {
+    try {
+        const {_id} = req.user;
+        const {path:  tempUpload, originalname} = req.file;
+
+        const changeSizeAvatar = await jimp.read(tempUpload);
+        await changeSizeAvatar.resize(250, jimp.AUTO).writeAsync(tempUpload);
+
+        const filename = `${_id}_${originalname}`;
+        const resultToUpload = path.join(avatarsDir, filename)
+
+        await fs.rename(tempUpload, resultToUpload);
+            
+        const avatarURL = path.join("avatars", filename);
+
+        await User.findByIdAndUpdate(_id, {avatarURL});
+
+        res.json({
+            avatarURL
         })
     } catch (error) {
         next(error)
